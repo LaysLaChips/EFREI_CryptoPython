@@ -25,13 +25,27 @@ init_db()
 # 📥 Génère une clé pour un utilisateur et la sauvegarde
 @app.route('/generate_key/<username>')
 def generate_key(username):
-    key = Fernet.generate_key().decode()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("REPLACE INTO users (username, key) VALUES (?, ?)", (username, key))
-    conn.commit()
+
+    # Vérifie si le user a déjà une clé
+    c.execute("SELECT key FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+
+    if result:
+        # Ne regénère pas la clé, renvoie l'existante
+        key = result[0]
+        message = f"Clé déjà existante pour {username} : {key}"
+    else:
+        # Crée une nouvelle clé uniquement si l'user est nouveau
+        key = Fernet.generate_key().decode()
+        c.execute("INSERT INTO users (username, key) VALUES (?, ?)", (username, key))
+        conn.commit()
+        message = f"Nouvelle clé générée pour {username} : {key}"
+
     conn.close()
-    return f"Clé générée pour {username} : {key}"
+    return message
+
 
 # 🔒 Chiffre une valeur avec la clé du user
 @app.route('/encrypt/<username>/<valeur>')
