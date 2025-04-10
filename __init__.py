@@ -21,6 +21,5 @@ def encryptage(valeur):
     return f"Valeur encryptée : {token.decode()}"  # Retourne le token en str
          @app.route('/decrypt/<string:valeur>')
 
-                                                                                                                                         
 if __name__ == "__main__":
   app.run(debug=True)
