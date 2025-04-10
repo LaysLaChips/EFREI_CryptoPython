@@ -1,44 +1,79 @@
-from cryptography.fernet import Fernet
-from flask import Flask, render_template
+from cryptography.fernet import Fernet, InvalidToken
+from flask import Flask
+import sqlite3
 import os
 
 app = Flask(__name__)
+DB_PATH = "cles_users.db"
 
-# 🔐 Génère ou récupère une clé persistante (au lieu de générer à chaque lancement)
-key_path = "secret.key"
+# 📌 Initialisation BDD si elle n'existe pas
+def init_db():
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE users (
+                username TEXT PRIMARY KEY,
+                key TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
 
-if os.path.exists(key_path):
-    with open(key_path, "rb") as f_key:
-        key = f_key.read()
-else:
-    key = Fernet.generate_key()
-    with open(key_path, "wb") as f_key:
-        f_key.write(key)
+init_db()
 
-f = Fernet(key)
+# 📥 Génère une clé pour un utilisateur et la sauvegarde
+@app.route('/generate_key/<username>')
+def generate_key(username):
+    key = Fernet.generate_key().decode()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("REPLACE INTO users (username, key) VALUES (?, ?)", (username, key))
+    conn.commit()
+    conn.close()
+    return f"Clé générée pour {username} : {key}"
 
-# 🏠 Route d'accueil
+# 🔒 Chiffre une valeur avec la clé du user
+@app.route('/encrypt/<username>/<valeur>')
+def encrypt(username, valeur):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT key FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+
+    if result:
+        key = result[0]
+        f = Fernet(key.encode())
+        token = f.encrypt(valeur.encode())
+        return f"Valeur encryptée : {token.decode()}"
+    else:
+        return f"Aucune clé trouvée pour l'utilisateur {username}"
+
+# 🔓 Déchiffre une valeur avec la clé du user
+@app.route('/decrypt/<username>/<valeur>')
+def decrypt(username, valeur):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT key FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+
+    if result:
+        key = result[0]
+        f = Fernet(key.encode())
+        try:
+            decrypted = f.decrypt(valeur.encode())
+            return f"Valeur décryptée : {decrypted.decode()}"
+        except InvalidToken:
+            return "Erreur : le token ne correspond pas à la clé."
+    else:
+        return f"Aucune clé trouvée pour l'utilisateur {username}"
+
+# Page d'accueil
 @app.route('/')
-def hello_world():
-    return render_template('hello.html')
+def home():
+    return "Bienvenue sur l'API de chiffrement personnalisée 🔐"
 
-# 🔒 Route de chiffrement
-@app.route('/encrypt/<string:valeur>')
-def encryptage(valeur):
-    valeur_bytes = valeur.encode()  # Conversion str -> bytes
-    token = f.encrypt(valeur_bytes)  # Encrypt la valeur
-    return f"Valeur encryptée : {token.decode()}"  # Retourne le token en str
-
-# 🔓 Route de déchiffrement
-@app.route('/decrypt/<string:valeur>')
-def decryptage(valeur):
-    try:
-        valeur_bytes = valeur.encode()
-        decrypted = f.decrypt(valeur_bytes)
-        return f"Valeur décryptée : {decrypted.decode()}"
-    except Exception as e:
-        return f"Erreur de déchiffrement : {str(e)}"
-
-# 🚀 Lancement local (inutile sur AlwaysData mais pratique en dev)
 if __name__ == "__main__":
     app.run(debug=True)
