@@ -87,7 +87,7 @@ def decrypt(username, valeur):
 # Page d'accueil
 @app.route('/')
 def home():
-    return "Bienvenue sur l'API de chiffrement personnalisée 🔐"
+    return "Bienvenue sur l'API de chiffrement personnalisée de AM 🔐"
 
 if __name__ == "__main__":
     app.run(debug=True)
