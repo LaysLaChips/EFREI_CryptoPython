@@ -44,7 +44,7 @@ jobs:
               rsync -r temp_repo/ ./flask &&
               rm -rf temp_repo
             else
-              echo 'Le répertoire flask de destination sur votre serveur n'existe pas' &&
+              echo "Le répertoire flask de destination sur votre serveur n'existe pas" &&
               exit 1
             fi
           "
