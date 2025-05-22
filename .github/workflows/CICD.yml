@@ -16,9 +16,9 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "ssh-${{ secrets.USERNAME }}.alwaysdata.net" >> ~/.ssh/known_hosts
 
-      - name: Connexion SSH avec le serveur
+      - name: Vérification de connexion SSH
         run: |
-          ssh ${{ secrets.USERNAME }}@ssh-${{ secrets.USERNAME }}.alwaysdata.net "cd \$HOME/www && ls"
+          ssh ${{ secrets.USERNAME }}@ssh-${{ secrets.USERNAME }}.alwaysdata.net "echo Connexion réussie au serveur"
 
   Copy:
     needs: Connexion
@@ -36,18 +36,17 @@ jobs:
 
       - name: Copier les fichiers vers le serveur
         run: |
-          last_directory=$(basename ${{ github.workspace }})
-          ssh ${{ secrets.USERNAME }}@ssh-${{ secrets.USERNAME }}.alwaysdata.net "
-            cd \$HOME/www &&
-            git clone https://github.com/${{ github.repository }}.git temp_repo &&
+          ssh ${{ secrets.USERNAME }}@ssh-${{ secrets.USERNAME }}.alwaysdata.net "bash -s" <<EOF
+            cd \$HOME/www
+            git clone https://github.com/${{ github.repository }}.git temp_repo
             if [ -d ./flask ]; then
-              rsync -r temp_repo/ ./flask &&
+              rsync -r temp_repo/ ./flask
               rm -rf temp_repo
             else
-              echo "Le répertoire flask de destination sur votre serveur n'existe pas" &&
+              echo "Le répertoire flask de destination sur votre serveur n'existe pas"
               exit 1
             fi
-          "
+EOF
 
   Restart:
     needs: Copy
@@ -55,16 +54,16 @@ jobs:
     steps:
       - name: Restart Alwaysdata site
         run: |
-          response_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST --basic --user "${{ secrets.ALWAYSDATA_TOKEN }}:" https://api.alwaysdata.com/v1/site/${{ secrets.ALWAYSDATA_SITE_ID }}/restart/)
-          if [ "$response_code" -eq 204 ]; then
+          response_code=\$(curl -s -o /dev/null -w "%{http_code}" -X POST --basic --user "${{ secrets.ALWAYSDATA_TOKEN }}:" https://api.alwaysdata.com/v1/site/${{ secrets.ALWAYSDATA_SITE_ID }}/restart/)
+          if [ "\$response_code" -eq 204 ]; then
             echo "Relance de votre site réussi"
-          elif [ "$response_code" -eq 404 ]; then
+          elif [ "\$response_code" -eq 404 ]; then
             echo "Vous n'avez pas renseigné correctement votre secret ALWAYSDATA_SITE_ID"
             exit 1
-          elif [ "$response_code" -eq 401 ]; then
+          elif [ "\$response_code" -eq 401 ]; then
             echo "Vous n'avez pas renseigné correctement votre secret ALWAYSDATA_TOKEN"
             exit 1
           else
-            echo "Échec du redémarrage avec le code de réponse : $response_code"
+            echo "Échec du redémarrage avec le code de réponse : \$response_code"
             exit 1
           fi
